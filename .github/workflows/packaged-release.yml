@@ -120,9 +120,27 @@ jobs:
           profile: pixel_6
           disable-animations: false
           script: |
+            set -euo pipefail
+            PACKAGE="world.navis.cns_bridge_mobile"
             adb install -r build-mobile/build/app/outputs/flutter-apk/app-release.apk
-            adb shell monkey -p world.navis.cns_bridge_mobile -c android.intent.category.LAUNCHER 1
-            adb shell pidof world.navis.cns_bridge_mobile
+            COMPONENT="$(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER "$PACKAGE" | tr -d '\r' | tail -n 1)"
+            test -n "$COMPONENT"
+            echo "Resolved launcher: $COMPONENT"
+            adb logcat -c
+            adb shell am force-stop "$PACKAGE"
+            adb shell am start -W -n "$COMPONENT"
+            for attempt in $(seq 1 30); do
+              PID="$(adb shell pidof "$PACKAGE" | tr -d '\r' || true)"
+              if [ -n "$PID" ]; then
+                echo "Android launch verified; pid=$PID"
+                exit 0
+              fi
+              sleep 2
+            done
+            echo "Android process did not remain alive; diagnostics follow"
+            adb shell dumpsys activity activities | grep -F "$PACKAGE" || true
+            adb logcat -d -t 400 | grep -E "($PACKAGE|AndroidRuntime|FATAL EXCEPTION)" || true
+            exit 1
       - name: Stage Android artifact
         run: |
           mkdir -p release
