@@ -158,7 +158,7 @@ jobs:
           flutter test
       - name: Build iOS simulator app
         working-directory: build-mobile
-        run: flutter build ios --simulator --release
+        run: flutter build ios --simulator --debug
       - name: Launch on iPhone simulator
         run: |
           UDID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')"
