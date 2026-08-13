@@ -2,6 +2,7 @@ package statecore
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../c/include
+#cgo LDFLAGS: -lm
 #include "cns_state_core.h"
 */
 import "C"
