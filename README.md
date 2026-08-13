@@ -6,6 +6,19 @@ The library turns heterogeneous observations into a bounded recurrent control st
 
 > **Scientific boundary:** in this project, “12D/42D/54D” means numerical state channels. It is not a claim that software is operating in literal extra spatial dimensions. Quantum/QRNG sources are optional entropy/control inputs; they do not replace the model or perform language inference.
 
+## Distribution
+
+The public project now includes reproducible desktop, mobile, and binary release packaging:
+
+- ✅ **One-click Windows `.exe` installer** — generated with PyInstaller + Inno Setup and smoke-tested after installation on a clean Windows runner.
+- ✅ **macOS `.dmg` / `.app` installer** — the app is built, placed in a DMG, the DMG is mounted in CI, and the packaged CNS self-test is executed from the mounted image.
+- ✅ **Polished iPhone / Android companion application** — Flutter mobile UI with a local 12D → 42D → 54D recurrent state engine, mobile contract tests, Android emulator launch verification, and iPhone simulator launch verification.
+- ✅ **Packaged GitHub Release with binaries** — the release workflow publishes Windows, macOS, Android, iOS, the certified Python wheel, release notes, and SHA-256 checksums after all platform jobs pass on `main`.
+
+See [`docs/APPS_AND_INSTALLERS.md`](docs/APPS_AND_INSTALLERS.md) for artifact names and verification details.
+
+> **Apple distribution note:** an iPhone simulator app and unsigned physical-device app bundle can be built and published automatically. Installation on a physical iPhone, TestFlight distribution, App Store distribution, and Apple notarization require an Apple Developer signing identity supplied by the distributor. The project does not embed private signing credentials.
+
 ## Why this exists
 
 Most AI applications are organized as `prompt -> model -> answer`. The CNS harness is organized as a recurrent system:
@@ -35,6 +48,8 @@ The **model is one organ of the system, not the whole system**.
 
 ## Install
 
+### Python
+
 ```bash
 python -m pip install .
 ```
@@ -53,6 +68,10 @@ python -m build
 ```
 
 Artifacts will appear in `dist/`.
+
+### Desktop and mobile
+
+Use the packaged artifacts attached to the GitHub Release for normal end-user installation. The repository also contains the complete reproducible build definitions for Windows, macOS, Android, and iOS.
 
 ## 30-second demo
 
@@ -148,12 +167,30 @@ src/cns_bridge/
   plasticity.py       bounded Hebbian learning
   transformer.py      inspectable 54-channel self-attention mixer
 
+apps/desktop/
+  cns_bridge_desktop.py   Windows/macOS desktop shell + packaged self-test
+
+apps/mobile/
+  lib/                    Flutter mobile UI + local CNS companion engine
+  test/                   12D/42D/54D and recurrence contract tests
+  pubspec.yaml
+
+installer/windows/
+  CNSBridge.iss            one-click Windows installer definition
+
+.github/workflows/
+  ci.yml
+  release-verification.yml
+  packaged-release.yml     desktop/mobile builders + GitHub binary release
+
 docs/
   ARCHITECTURE.md
   TRANSFORMER_GUIDE.md
   TEACHER_GUIDE.md
   ENGINEERING_MANUAL.md
   INTEGRATION_GUIDE.md
+  APPS_AND_INSTALLERS.md
+  RELEASE_VERIFICATION.md
   SCIENTIFIC_BOUNDARIES.md
 examples/
 tests/
@@ -195,10 +232,11 @@ This dual-license structure keeps the code broadly reusable while preserving cle
 
 ## Status
 
-`v0.1.0` is a working public reference implementation. It is intentionally small enough to audit and extend. It does **not** contain private COSMOS model weights, secret keys, vendor credentials, or a claim that this NumPy reference block reproduces every private/heavy COSMOS component.
+`v0.1.0` is a working public reference implementation with automated source, wheel, desktop installer, and mobile application build verification. It does **not** contain private COSMOS model weights, secret keys, vendor credentials, Apple signing identities, or a claim that this NumPy/mobile reference implementation reproduces every private/heavy COSMOS component.
 
 ## Start here
 
+- Apps/installers/downloads: [`docs/APPS_AND_INSTALLERS.md`](docs/APPS_AND_INSTALLERS.md)
 - Engineers: [`docs/ENGINEERING_MANUAL.md`](docs/ENGINEERING_MANUAL.md)
 - Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Transformer/state layer: [`docs/TRANSFORMER_GUIDE.md`](docs/TRANSFORMER_GUIDE.md)

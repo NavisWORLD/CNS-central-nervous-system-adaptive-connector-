@@ -1,0 +1,269 @@
+name: Packaged Cross-Platform Release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_VERSION: "0.1.0"
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  windows-installer:
+    name: Windows EXE installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Verify certified wheel
+        shell: pwsh
+        run: |
+          python -c "import hashlib,pathlib; p=pathlib.Path('dist/cns_adaptive_connector-0.1.0-py3-none-any.whl'); expected=pathlib.Path('dist/SHA256SUMS').read_text().split()[0]; actual=hashlib.sha256(p.read_bytes()).hexdigest(); print(actual); assert actual==expected"
+      - name: Install certified core and packager
+        run: python -m pip install dist/cns_adaptive_connector-0.1.0-py3-none-any.whl pyinstaller
+      - name: Build Windows desktop executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/windows | Out-Null
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name CNSBridge --distpath build/windows apps/desktop/cns_bridge_desktop.py
+          .\build\windows\CNSBridge.exe --self-test
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress -y
+      - name: Build one-click installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\windows\CNSBridge.iss
+      - name: Smoke-test installed application
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP "CNSBridgeInstall"
+          Start-Process -FilePath "release\CNS-Bridge-Setup-Windows-x64.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$target" -Wait
+          & "$target\CNSBridge.exe" --self-test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: release/CNS-Bridge-Setup-Windows-x64.exe
+          if-no-files-found: error
+
+  macos-dmg:
+    name: macOS app and DMG
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Verify certified wheel
+        run: python -c "import hashlib,pathlib; p=pathlib.Path('dist/cns_adaptive_connector-0.1.0-py3-none-any.whl'); expected=pathlib.Path('dist/SHA256SUMS').read_text().split()[0]; actual=hashlib.sha256(p.read_bytes()).hexdigest(); print(actual); assert actual==expected"
+      - name: Install certified core and packager
+        run: python -m pip install dist/cns_adaptive_connector-0.1.0-py3-none-any.whl pyinstaller
+      - name: Build macOS application
+        run: |
+          mkdir -p build/macos release
+          python -m PyInstaller --noconfirm --clean --windowed --name "CNS Bridge" --distpath build/macos apps/desktop/cns_bridge_desktop.py
+          "build/macos/CNS Bridge.app/Contents/MacOS/CNS Bridge" --self-test
+      - name: Build DMG
+        run: hdiutil create -volname "CNS Bridge" -srcfolder "build/macos/CNS Bridge.app" -ov -format UDZO "release/CNS-Bridge-macOS.dmg"
+      - name: Smoke-test application from DMG
+        run: |
+          hdiutil attach -nobrowse -readonly "release/CNS-Bridge-macOS.dmg"
+          "/Volumes/CNS Bridge/CNS Bridge.app/Contents/MacOS/CNS Bridge" --self-test
+          hdiutil detach "/Volumes/CNS Bridge"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: release/CNS-Bridge-macOS.dmg
+          if-no-files-found: error
+
+  android-app:
+    name: Android application
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Enable KVM acceleration when available
+        run: |
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm || true
+            ls -l /dev/kvm || true
+          else
+            echo "KVM is unavailable on this hosted runner; emulator will use software mode."
+          fi
+      - name: Generate native Android shell
+        run: |
+          rm -rf build-mobile
+          flutter create --platforms=android --org world.navis --project-name cns_bridge_mobile build-mobile
+          rm -rf build-mobile/lib build-mobile/test
+          cp apps/mobile/pubspec.yaml build-mobile/pubspec.yaml
+          cp -R apps/mobile/lib build-mobile/lib
+          cp -R apps/mobile/test build-mobile/test
+      - name: Test mobile CNS contract
+        working-directory: build-mobile
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Build release APK
+        working-directory: build-mobile
+        run: flutter build apk --release
+      - name: Verify APK archive
+        run: unzip -t build-mobile/build/app/outputs/flutter-apk/app-release.apk
+      - name: Install and launch APK in emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: false
+          script: >-
+            set -eu;
+            PACKAGE='world.navis.cns_bridge_mobile';
+            adb install -r build-mobile/build/app/outputs/flutter-apk/app-release.apk;
+            COMPONENT="$(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER "$PACKAGE" | tr -d '\r' | tail -n 1)";
+            test -n "$COMPONENT";
+            echo "Resolved launcher: $COMPONENT";
+            adb logcat -c;
+            adb shell am force-stop "$PACKAGE";
+            adb shell am start -W -n "$COMPONENT";
+            attempt=1;
+            while [ "$attempt" -le 30 ]; do PID="$(adb shell pidof "$PACKAGE" | tr -d '\r' || true)"; if [ -n "$PID" ]; then echo "Android launch verified; pid=$PID"; exit 0; fi; attempt=$((attempt + 1)); sleep 2; done;
+            echo "Android process did not remain alive; diagnostics follow";
+            adb shell dumpsys activity activities | grep -F "$PACKAGE" || true;
+            adb logcat -d -t 400 | grep -E "($PACKAGE|AndroidRuntime|FATAL EXCEPTION)" || true;
+            exit 1
+      - name: Stage Android artifact
+        run: |
+          mkdir -p release
+          cp build-mobile/build/app/outputs/flutter-apk/app-release.apk release/CNS-Bridge-Android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-android
+          path: release/CNS-Bridge-Android.apk
+          if-no-files-found: error
+
+  ios-app:
+    name: iPhone application
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Generate native iOS shell
+        run: |
+          rm -rf build-mobile
+          flutter create --platforms=ios --org world.navis --project-name cns_bridge_mobile build-mobile
+          rm -rf build-mobile/lib build-mobile/test
+          cp apps/mobile/pubspec.yaml build-mobile/pubspec.yaml
+          cp -R apps/mobile/lib build-mobile/lib
+          cp -R apps/mobile/test build-mobile/test
+      - name: Test mobile CNS contract
+        working-directory: build-mobile
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+      - name: Build iOS simulator app
+        working-directory: build-mobile
+        run: flutter build ios --simulator --debug
+      - name: Launch on iPhone simulator
+        run: |
+          UDID="$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')"
+          test -n "$UDID"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" build-mobile/build/ios/iphonesimulator/Runner.app
+          BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' build-mobile/build/ios/iphonesimulator/Runner.app/Info.plist)"
+          xcrun simctl launch "$UDID" "$BUNDLE_ID"
+          xcrun simctl shutdown "$UDID"
+      - name: Package simulator app
+        run: |
+          mkdir -p release
+          ditto -c -k --sequesterRsrc --keepParent build-mobile/build/ios/iphonesimulator/Runner.app release/CNS-Bridge-iOS-Simulator.app.zip
+      - name: Build unsigned iPhone device app
+        working-directory: build-mobile
+        run: flutter build ios --release --no-codesign
+      - name: Package unsigned device app
+        run: |
+          file build-mobile/build/ios/iphoneos/Runner.app/Runner
+          ditto -c -k --sequesterRsrc --keepParent build-mobile/build/ios/iphoneos/Runner.app release/CNS-Bridge-iOS-Unsigned.app.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-ios
+          path: |
+            release/CNS-Bridge-iOS-Simulator.app.zip
+            release/CNS-Bridge-iOS-Unsigned.app.zip
+          if-no-files-found: error
+
+  python-wheel:
+    name: Certified Python wheel
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify checksum
+        run: cd dist && sha256sum -c SHA256SUMS
+      - name: Stage wheel
+        run: |
+          mkdir -p release
+          cp dist/cns_adaptive_connector-0.1.0-py3-none-any.whl release/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-python
+          path: release/cns_adaptive_connector-0.1.0-py3-none-any.whl
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish GitHub Release binaries
+    if: github.event_name != 'pull_request'
+    needs: [windows-installer, macos-dmg, android-app, ios-app, python-wheel]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: release
+      - name: Generate bundle checksums and release notes
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS-ALL
+          cat > RELEASE_NOTES.md <<'EOF'
+          # CNS Adaptive Connector — Cross-Platform Distribution
+
+          This release packages the certified public CNS reference library with runnable desktop and mobile companions.
+
+          Included artifacts:
+          - Windows x64 one-click `.exe` installer.
+          - macOS `.dmg` containing the CNS Bridge `.app`.
+          - Android release `.apk`.
+          - iOS simulator `.app` bundle and unsigned iPhone device `.app` bundle.
+          - Certified Python wheel.
+          - SHA-256 checksums for every published artifact.
+
+          Windows and macOS desktop builds run the certified Python wheel and execute a packaged CNS self-test during CI. Android is installed and launched in an emulator during CI. iOS is installed and launched in an iPhone simulator during CI.
+
+          Apple device installation, TestFlight, and App Store distribution require Apple signing/notarization credentials. The unsigned iPhone bundle is intentionally provided so organizations can sign it with their own Apple Developer identity.
+          EOF
+          TAG="v${RELEASE_VERSION}"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" ./* --clobber
+            gh release edit "$TAG" --title "CNS Adaptive Connector ${TAG}" --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$TAG" ./* --target "$GITHUB_SHA" --title "CNS Adaptive Connector ${TAG}" --notes-file RELEASE_NOTES.md
+          fi
