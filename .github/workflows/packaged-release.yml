@@ -240,12 +240,10 @@ jobs:
 
           Apple device installation, TestFlight, and App Store distribution require Apple signing/notarization credentials. The unsigned iPhone bundle is intentionally provided so organizations can sign it with their own Apple Developer identity.
           EOF
-      - name: Create or update GitHub Release
-        run: |
           TAG="v${RELEASE_VERSION}"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" release/* --clobber
-            gh release edit "$TAG" --title "CNS Adaptive Connector ${TAG}" --notes-file release/RELEASE_NOTES.md
+            gh release upload "$TAG" ./* --clobber
+            gh release edit "$TAG" --title "CNS Adaptive Connector ${TAG}" --notes-file RELEASE_NOTES.md
           else
-            gh release create "$TAG" release/* --target "$GITHUB_SHA" --title "CNS Adaptive Connector ${TAG}" --notes-file release/RELEASE_NOTES.md
+            gh release create "$TAG" ./* --target "$GITHUB_SHA" --title "CNS Adaptive Connector ${TAG}" --notes-file RELEASE_NOTES.md
           fi
