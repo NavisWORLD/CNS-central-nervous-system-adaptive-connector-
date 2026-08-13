@@ -29,7 +29,7 @@ The public DMG is unsigned. Organizations that require Gatekeeper notarization s
 
 Release artifact: `CNS-Bridge-Android.apk`
 
-The mobile companion is implemented with Flutter under `apps/mobile/`. CI generates the Android platform shell, runs static analysis and tests, builds a release APK, installs it into an Android emulator, launches the package, and verifies that the process is alive.
+The mobile companion is implemented with Flutter under `apps/mobile/`. CI generates the Android platform shell, runs static analysis and tests, builds and archive-validates a release APK, then boots an Android virtual device and installs/launches the package as a runtime smoke test. The emulator verifier leaves animation changes disabled so host-side emulator settings do not interfere with the application launch test.
 
 ## iPhone / iOS
 
@@ -37,7 +37,9 @@ Release artifacts:
 - `CNS-Bridge-iOS-Simulator.app.zip`
 - `CNS-Bridge-iOS-Unsigned.app.zip`
 
-CI generates the iOS platform shell, analyzes/tests the Flutter app, builds the release simulator app, boots an available iPhone simulator, installs and launches the app, and then builds an unsigned device app bundle.
+CI generates the iOS platform shell and analyzes/tests the Flutter app. It then builds a simulator-compatible app, boots an available iPhone simulator, installs and launches that app, and packages it as the simulator artifact. Separately, CI builds a release-mode physical-device app with `--no-codesign` and packages that device-target bundle for downstream signing.
+
+Flutter does not support release mode for the iOS Simulator, so simulator runtime verification and the physical-device release build intentionally use different build modes. This does not change the application source or the mobile CNS state contract.
 
 Apple requires code signing for installation on physical iPhones and for TestFlight/App Store distribution. The repository therefore publishes an unsigned device bundle that a developer or organization can sign with its own Apple Developer credentials. This is an Apple platform requirement, not a missing CNS feature.
 
