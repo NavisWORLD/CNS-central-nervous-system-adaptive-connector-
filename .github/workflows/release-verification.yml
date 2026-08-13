@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   build-wheel:
     name: build canonical wheel
@@ -54,3 +57,73 @@ jobs:
         run: cns-bridge demo --prompt "release certification smoke test" --json
       - name: Verify public Python contract
         run: python -c "from cns_bridge import CNSHarness,SensorySnapshot; h=CNSHarness(seed=707); r=h.run_step('certify',SensorySnapshot(audio_rms=.2,dominant_frequency_hz=220,arousal=.4),{'coherence':.8}); assert r.packet.sensory_12d.shape==(12,); assert r.packet.context_42d.shape==(42,); assert r.packet.adaptive_54d.shape==(54,); assert r.response; assert h.plasticity.updates==1; assert len(h.memory)==1; print('CNS WHEEL CONTRACT PASS')"
+
+  promote-certified-artifact:
+    name: promote certified wheel
+    needs: [build-wheel, wheel-smoke]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/agent/release-certification' && !contains(github.event.head_commit.message, '[certified-wheel-promoted]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/release-certification
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: certified-wheel
+          path: certified-dist
+      - name: Promote tested artifact and write certification
+        shell: bash
+        run: |
+          set -euo pipefail
+          wheel="$(find certified-dist -maxdepth 1 -name '*.whl' -print -quit)"
+          test -n "$wheel"
+          cp "$wheel" dist/cns_adaptive_connector-0.1.0-py3-none-any.whl
+          sha="$(sha256sum dist/cns_adaptive_connector-0.1.0-py3-none-any.whl | awk '{print $1}')"
+          printf '%s  %s\n' "$sha" 'cns_adaptive_connector-0.1.0-py3-none-any.whl' > dist/SHA256SUMS
+          python - "$sha" <<'PY'
+          import pathlib, re, sys
+          sha = sys.argv[1]
+          p = pathlib.Path('docs/DOWNLOADS.md')
+          text = p.read_text(encoding='utf-8')
+          text = re.sub(r'`[0-9a-f]{64}`', f'`{sha}`', text, count=1)
+          text = text.replace('The release-verification workflow checks this exact committed artifact, installs it on clean Linux, Windows, and macOS runners, runs the CLI, and executes a complete CNS cycle.', 'This wheel is promoted only after the release-verification workflow builds it from source and installs/runs the same artifact on clean Linux, Windows, and macOS runners.')
+          p.write_text(text, encoding='utf-8')
+          PY
+          cat > CERTIFICATION.md <<EOF
+          # CNS Adaptive Connector — Release Certification
+
+          **Status: PASS**
+
+          Certified scope: public \`cns-adaptive-connector\` Python reference package, version **0.1.0**.
+
+          Certification source commit: \`${GITHUB_SHA}\`  
+          GitHub Actions verification run: \`${GITHUB_RUN_ID}\`  
+          Canonical wheel: \`dist/cns_adaptive_connector-0.1.0-py3-none-any.whl\`  
+          Canonical wheel SHA-256: \`${sha}\`
+
+          ## Verified
+
+          - Wheel built from repository source with standard Python build tooling.
+          - Freshly built wheel installed successfully before promotion.
+          - CLI demo completed successfully on the build runner.
+          - The identical wheel installed and ran successfully on Ubuntu, macOS, and Windows using Python 3.11.
+          - \`cns-bridge status\` completed on all three operating systems.
+          - \`cns-bridge demo --json\` completed a full CNS cycle on all three operating systems.
+          - Public Python contract returned vectors shaped 12D, 42D, and 54D and updated memory/plasticity.
+          - Source CI separately tests Python 3.10, 3.11, and 3.12, runs pytest, and builds the distribution.
+          - Contract tests cover custom backend delivery, recurrence, external entropy, memory save/load, Hebbian save/load, and entropy fail-soft behavior.
+
+          ## Meaning of this certification
+
+          PASS means the public reference library is runnable for the tested software interfaces and environments. It does not certify arbitrary third-party models, sensors, quantum providers, robots, downstream applications, or scientific claims outside \`docs/SCIENTIFIC_BOUNDARIES.md\`.
+
+          Foundational research lineage: Cory Shane Davis, *12-Dimensional Cosmic Synapse Theory*, DOI \`10.5281/zenodo.17574447\`.
+          EOF
+          git config user.name "CNS Release Verifier"
+          git config user.email "actions@users.noreply.github.com"
+          git add dist/cns_adaptive_connector-0.1.0-py3-none-any.whl dist/SHA256SUMS docs/DOWNLOADS.md CERTIFICATION.md
+          if ! git diff --cached --quiet; then
+            git commit -m "[certified-wheel-promoted] promote verified wheel and certification"
+            git push origin HEAD:agent/release-certification
+          fi
