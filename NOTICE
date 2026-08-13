@@ -1,0 +1,12 @@
+CNS Central Nervous System Adaptive Connector
+Copyright 2026 Cory Shane Davis
+
+This distribution contains an open reference implementation derived from the
+COSMOS / Davis CNS architecture and research lineage.
+
+Foundational research citation:
+Cory Shane Davis, 12-Dimensional Cosmic Synapse Theory, Zenodo.
+DOI: 10.5281/zenodo.17574447
+
+The Apache License 2.0 applies to software unless a file states otherwise.
+Original documentation in docs/ is licensed under CC BY 4.0 unless stated otherwise.

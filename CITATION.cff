@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software in research, please cite the software and the foundational research record."
+title: "CNS Central Nervous System Adaptive Connector"
+type: software
+authors:
+  - family-names: "Davis"
+    given-names: "Cory Shane"
+version: 0.1.0
+date-released: 2026-08-12
+repository-code: "https://github.com/NavisWORLD/CNS-central-nervous-system-adaptive-connector-"
+license: Apache-2.0
+identifiers:
+  - type: doi
+    value: "10.5281/zenodo.17574447"
+    description: "Foundational 12-Dimensional Cosmic Synapse Theory research record"
+references:
+  - type: generic
+    title: "12-Dimensional Cosmic Synapse Theory"
+    authors:
+      - family-names: "Davis"
+        given-names: "Cory Shane"
+    doi: "10.5281/zenodo.17574447"
