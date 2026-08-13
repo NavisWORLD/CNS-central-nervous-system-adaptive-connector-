@@ -1,0 +1,109 @@
+name: Cross-Language Synaptic Core
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  portable-core:
+    name: Python C C++ JS Go
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify Python facade
+        run: |
+          python -m pip install -e .
+          python - <<'PY'
+          from cns_bridge import SensorySnapshot, encode_12d, expand_42d
+          x12 = encode_12d(SensorySnapshot())
+          x42 = expand_42d(x12, [0.0] * 30)
+          assert x12.shape == (12,)
+          assert x42.shape == (42,)
+          assert all(map(lambda x: x == x, x42))
+          print("PYTHON SYNAPTIC CORE PASS")
+          PY
+
+      - name: Build C shared and static libraries
+        run: |
+          mkdir -p build/native
+          gcc -std=c11 -O2 -fPIC -Ibindings/c/include -c bindings/c/src/cns_state_core.c -o build/native/cns_state_core.o
+          gcc -shared build/native/cns_state_core.o -lm -o build/native/libcns_state_core.so
+          ar rcs build/native/libcns_state_core.a build/native/cns_state_core.o
+          test -s build/native/libcns_state_core.so
+          test -s build/native/libcns_state_core.a
+
+      - name: Verify C ABI smoke
+        run: |
+          cat > /tmp/c_smoke.c <<'EOF'
+          #include "cns_state_core.h"
+          #include <math.h>
+          int main(void) {
+            double in[12] = {0};
+            double out[12] = {0};
+            if (cns_encode_12d(in, out) != 0) return 1;
+            if (!isfinite(out[0]) || !isfinite(out[11])) return 2;
+            return 0;
+          }
+          EOF
+          gcc -std=c11 -Ibindings/c/include /tmp/c_smoke.c bindings/c/src/cns_state_core.c -lm -o /tmp/c_smoke
+          /tmp/c_smoke
+
+      - name: Verify C++ wrapper
+        run: |
+          cat > /tmp/cpp_smoke.cpp <<'EOF'
+          #include "cns_state_core.hpp"
+          #include <cmath>
+          int main() {
+            cns::State12 input{};
+            auto out = cns::encode(input);
+            return std::isfinite(out[0]) && std::isfinite(out[11]) ? 0 : 1;
+          }
+          EOF
+          gcc -std=c11 -Ibindings/c/include -c bindings/c/src/cns_state_core.c -o /tmp/cns_state_core.o
+          g++ -std=c++17 -Ibindings/cpp/include -Ibindings/c/include /tmp/cpp_smoke.cpp /tmp/cns_state_core.o -lm -o /tmp/cpp_smoke
+          /tmp/cpp_smoke
+
+      - name: Verify JavaScript module
+        run: |
+          node --input-type=module - <<'JS'
+          import { encode12, expand42, blend54 } from './bindings/javascript/core.mjs';
+          const x12 = encode12(Array(12).fill(0));
+          const x42 = expand42(x12, Array(30).fill(0));
+          const x54 = blend54([...x42, ...Array(12).fill(0)], Array(54).fill(0));
+          if (x12.length !== 12 || x42.length !== 42 || x54.length !== 54) process.exit(1);
+          if (!x54.every(Number.isFinite)) process.exit(2);
+          console.log('JAVASCRIPT SYNAPTIC CORE PASS');
+          JS
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23.x"
+
+      - name: Verify Go and cgo bridge
+        working-directory: bindings/go
+        env:
+          CGO_ENABLED: "1"
+        run: go test ./...
+
+  rust-binding:
+    name: Rust binding
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Build native state core
+        run: |
+          mkdir -p build/native
+          gcc -std=c11 -O2 -fPIC -Ibindings/c/include -c bindings/c/src/cns_state_core.c -o build/native/cns_state_core.o
+          ar rcs build/native/libcns_state_core.a build/native/cns_state_core.o
+
+      - name: Compile Rust wrapper against C ABI
+        env:
+          RUSTFLAGS: "-L native=${{ github.workspace }}/build/native -C link-arg=-lm"
+        run: cargo test --manifest-path bindings/rust/Cargo.toml
