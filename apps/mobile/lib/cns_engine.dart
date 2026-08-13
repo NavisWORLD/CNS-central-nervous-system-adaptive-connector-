@@ -60,12 +60,12 @@ class CnsMobileEngine {
 
   double _unit(double value, double min, double max) {
     if (!value.isFinite || max <= min) return 0;
-    return ((value - min) / (max - min)).clamp(0.0, 1.0);
+    return ((value - min) / (max - min)).clamp(0.0, 1.0).toDouble();
   }
 
   double _signed(double value, double scale) {
     if (!value.isFinite || scale <= 0) return 0;
-    return (value / scale).clamp(-1.0, 1.0);
+    return (value / scale).clamp(-1.0, 1.0).toDouble();
   }
 
   List<double> encode12(SensoryInput s) {
@@ -75,7 +75,7 @@ class CnsMobileEngine {
     final phase = math.sin(s.phaseRad.isFinite ? s.phaseRad : 0);
     final phaseV = _signed(s.phaseVelocity, 10);
     final av = _unit(s.avCoherence, 0, 1) * 2 - 1;
-    final p = s.pleasure.clamp(-1.0, 1.0);
+    final p = s.pleasure.clamp(-1.0, 1.0).toDouble();
     final a = _unit(s.arousal, 0, 1) * 2 - 1;
     final d = _unit(s.dominance, 0, 1) * 2 - 1;
     final audioPsi = math.sin(2 * math.pi * freq) * rms;
@@ -103,8 +103,8 @@ class CnsMobileEngine {
 
   List<double> expand42(List<double> x12, Map<String, double> context) {
     if (x12.length != 12) throw ArgumentError('12D state must contain 12 values');
-    final coherence = (context['coherence'] ?? 0).clamp(-1.0, 1.0);
-    final entropy = (context['entropy'] ?? 0.5).clamp(0.0, 1.0) * 2 - 1;
+    final coherence = (context['coherence'] ?? 0).clamp(-1.0, 1.0).toDouble();
+    final entropy = (context['entropy'] ?? 0.5).clamp(0.0, 1.0).toDouble() * 2 - 1;
     final loop = math.tanh((context['loop'] ?? _iteration.toDouble()) / 16);
     final mean = x12.reduce((a, b) => a + b) / 12;
     final energy = math.sqrt(x12.map((v) => v * v).reduce((a, b) => a + b) / 12);
@@ -137,7 +137,7 @@ class CnsMobileEngine {
       final partner = x42[(i * 7 + 1) % 42];
       next[i] = math.tanh(0.72 * x42[i] + 0.18 * recurrence + 0.10 * partner);
     }
-    final ent = entropy.clamp(0.0, 1.0) * 2 - 1;
+    final ent = entropy.clamp(0.0, 1.0).toDouble() * 2 - 1;
     for (var i = 0; i < 12; i++) {
       final base = x42[(i * 3) % 42];
       final prior = _previous54[42 + i];
@@ -159,7 +159,7 @@ class CnsMobileEngine {
     });
     final x54 = adapt54(x42, sensory.entropy);
     final meanAbs = x54.map((v) => v.abs()).reduce((a, b) => a + b) / 54;
-    final coherence = (1 - (meanAbs - 0.45).abs()).clamp(0.0, 1.0);
+    final coherence = (1 - (meanAbs - 0.45).abs()).clamp(0.0, 1.0).toDouble();
     final tone = coherence > 0.75
         ? 'stable'
         : coherence > 0.5
