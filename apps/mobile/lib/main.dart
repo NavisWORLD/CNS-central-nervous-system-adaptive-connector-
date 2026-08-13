@@ -1,3 +1,5 @@
+import 'dart:ui' show FontFeature;
+
 import 'package:flutter/material.dart';
 import 'cns_engine.dart';
 
@@ -234,7 +236,7 @@ class _CnsHomePageState extends State<CnsHomePage> {
             ],
           ),
           Slider(
-            value: value.clamp(min, max),
+            value: value,
             min: min,
             max: max,
             onChanged: (v) => setState(() => setter(v)),
