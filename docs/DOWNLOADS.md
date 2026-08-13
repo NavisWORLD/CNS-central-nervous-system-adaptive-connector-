@@ -8,7 +8,7 @@ A validated Python wheel is committed under `dist/`:
 
 SHA-256 of the exact wheel committed to GitHub:
 
-`5913892a69e809db230929c101761757492c1ff892c9d1876330e2182d350d9b`
+`7473f1d548ad69a6a4bc46b6ed352ab148a5f71539083521bdad73fe34597ad8`
 
 Install it directly after downloading:
 
@@ -16,7 +16,7 @@ Install it directly after downloading:
 python -m pip install cns_adaptive_connector-0.1.0-py3-none-any.whl
 ```
 
-The release-verification workflow checks this exact committed artifact, installs it on clean Linux, Windows, and macOS runners, runs the CLI, and executes a complete CNS cycle.
+This wheel is promoted only after the release-verification workflow builds it from source and installs/runs the same artifact on clean Linux, Windows, and macOS runners.
 
 ## Build from source
 
