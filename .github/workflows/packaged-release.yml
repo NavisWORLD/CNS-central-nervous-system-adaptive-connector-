@@ -128,7 +128,7 @@ jobs:
           profile: pixel_6
           disable-animations: false
           script: |
-            set -euo pipefail
+            set -eu
             PACKAGE="world.navis.cns_bridge_mobile"
             adb install -r build-mobile/build/app/outputs/flutter-apk/app-release.apk
             COMPONENT="$(adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER "$PACKAGE" | tr -d '\r' | tail -n 1)"
