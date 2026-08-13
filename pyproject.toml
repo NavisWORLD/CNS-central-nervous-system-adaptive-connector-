@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cns-adaptive-connector"
+version = "0.1.0"
+description = "Open reference implementation of the COSMOS/Davis CNS adaptive connector architecture."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "Cory Shane Davis"}]
+keywords = ["cns", "adaptive-systems", "hebbian", "multimodal", "agent", "state-machine", "transformer"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+dependencies = ["numpy>=1.24"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "build>=1.2", "ruff>=0.6"]
+
+[project.scripts]
+cns-bridge = "cns_bridge.cli:main"
+
+[project.urls]
+Repository = "https://github.com/NavisWORLD/CNS-central-nervous-system-adaptive-connector-"
+Research = "https://doi.org/10.5281/zenodo.17574447"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
