@@ -194,8 +194,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Verify checksum
-        run: sha256sum -c dist/SHA256SUMS
-        working-directory: .
+        run: cd dist && sha256sum -c SHA256SUMS
       - name: Stage wheel
         run: |
           mkdir -p release
