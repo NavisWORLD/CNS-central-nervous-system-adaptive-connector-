@@ -122,7 +122,8 @@ jobs:
           EOF
           git config user.name "CNS Release Verifier"
           git config user.email "actions@users.noreply.github.com"
-          git add dist/cns_adaptive_connector-0.1.0-py3-none-any.whl dist/SHA256SUMS docs/DOWNLOADS.md CERTIFICATION.md
+          git add docs/DOWNLOADS.md CERTIFICATION.md
+          git add -f dist/cns_adaptive_connector-0.1.0-py3-none-any.whl dist/SHA256SUMS
           if ! git diff --cached --quiet; then
             git commit -m "[certified-wheel-promoted] promote verified wheel and certification"
             git push origin HEAD:agent/release-certification
